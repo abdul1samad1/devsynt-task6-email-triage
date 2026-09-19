@@ -129,7 +129,7 @@ Three separate webhooks route notifications to the right channel: HR (job applic
 
 ## Demo Video
 
-[link to be added after recording — 3-5 min covering all 10 test scenarios + logging]
+https://drive.google.com/file/d/1RavpoagdfOOoaN-_fyIe6-sdaTDI833i/view?usp=sharing
 
 ## LinkedIn Post
 
