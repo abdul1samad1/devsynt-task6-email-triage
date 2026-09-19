@@ -132,5 +132,4 @@ Three separate webhooks route notifications to the right channel: HR (job applic
 https://drive.google.com/file/d/1RavpoagdfOOoaN-_fyIe6-sdaTDI833i/view?usp=sharing
 
 ## LinkedIn Post
-
-[link to be added after publishing — tagging DevSynt's company page]
+https://www.linkedin.com/feed/update/urn:li:activity:7506997951634907136/
