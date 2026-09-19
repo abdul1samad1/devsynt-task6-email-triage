@@ -1,0 +1,27 @@
+# Test Report — Task 6 Email Triage & RAG Assistant
+
+| # | Scenario | Test Email Sent | Expected Result | Actual Result | Status |
+|---|---|---|---|---|---|
+| 1 | General knowledge query | Subject: "Question about your office hours" — asked about office hours and property management services | RAG answer + email reply | RAG correctly retrieved both answers from the knowledge base (office hours: Mon-Sat 10AM-7PM; management fee: 8% of annual rent) and sent an automated email reply. `rag_used: true`, `action_taken: rag_reply_sent` | ✅ Pass |
+| 2 | Unknown question | Subject: "Financing question" — asked about in-house financing / down payment assistance | No hallucination + human review / safe response | RAG found nothing relevant in the knowledge base and did **not** fabricate an answer. Escalated to Manager with a clear note ("No confident answer found in knowledge base") instead of guessing. `action_taken: escalated_low_confidence -> Manager` | ✅ Pass |
+| 3 | Job application | Subject: "Application for AI Intern role" with CV attached | Forward to HR + Discord notification | Correctly classified as `job_application` (priority: high), forwarded with attachment to HR, Discord alert sent to #hr-notifications with candidate name, email, and subject | ✅ Pass |
+| 4 | Project email | Subject: "Client wants to change scope of the listing contract" | Forward to Manager + Discord notification | Correctly classified as `project_related`, forwarded to Manager, Discord alert sent to #manager-notifications with reasoning ("client scope change and contract adjustment requiring managerial review") | ✅ Pass |
+| 5 | Meeting request | Subject: "Can we schedule a call next week?" | Human routing/notification | Correctly classified as `meeting_request`, Discord alert sent with an AI-suggested reply for human approval. No auto-scheduling occurred | ✅ Pass |
+| 6 | Critical client issue | Subject: "URGENT: payment failed on my booking" | High-priority notification + human handling | Correctly classified as `urgent_request` with `priority: critical`. Immediate Discord alert sent to #urgent-alerts with full context | ✅ Pass |
+| 7 | Promotional email | Subject: "Boost your business with our marketing services!" (unsolicited ad) | Delete/archive | Correctly classified as `promotional`, archived, no forward to employees, no Discord notification (as intended) | ✅ Pass |
+| 8 | Spam | Subject: "You've won a prize! Claim now!!!" | Spam handling | Correctly classified as `spam`, moved to spam handling, no forward, no notification | ✅ Pass |
+| 9 | Sales inquiry | Subject: "Interested in your services" — asked about property management fees | RAG response if answer exists; otherwise human escalation | RAG found the answer in the knowledge base (8% of annual rent) and auto-replied | ✅ Pass |
+| 10 | Follow-up email | Reply within the office-hours thread asking about weekday parking | Correct handling of conversation context | `thread_id` correctly carried the original message's ID alongside the new one, confirming the app recognized it as a continuation of the same conversation. Classified fresh (parking wasn't in the KB) and correctly escalated rather than guessing | ✅ Pass |
+
+## Issues Found
+
+1. **Model retirement during testing:** `gemini-2.0-flash` (initially configured) returned a `404 NOT_FOUND` mid-testing — Google retired the model. Fixed by switching to `gemini-3.6-flash` and adding automatic retry-with-fallback logic across three model options in `classifier.py`, so a single model outage doesn't break the pipeline.
+2. **Transient 503 "high demand" errors:** Gemini's newer models intermittently returned `503 UNAVAILABLE` under load (a known, widely-reported issue across many developers at time of testing, not specific to this project). Mitigated with retry-with-backoff logic.
+3. **Reliability gap found and fixed:** Initially, if classification raised an exception, the email had already been marked "read" by the IMAP fetch but never got logged — effectively lost with no retry. Fixed by wrapping each email's processing in a try/except that always logs an error entry, guaranteeing every fetched email is accounted for in the log regardless of outcome.
+4. **Self-forwarding loop (demo-environment only):** Initially configured `HR_EMAIL`/`MANAGER_EMAIL` to the same inbox being monitored, which caused forwarded copies to be re-classified and re-forwarded by the poller. Not a bug in the classification/routing logic — resolved by pointing `HR_EMAIL`/`MANAGER_EMAIL` to a separate address. Documented as a required setup step (monitored inbox and forwarding targets must be different addresses).
+
+## Notes
+
+- **Duplicate protection:** verified via `message_id` uniqueness in the `email_log` SQLite table — re-running `/process-inbox` against an already-logged email consistently returns `processed: 0` for that email, confirming no duplicate actions occur even across server restarts.
+- **Logging:** verified via `GET /logs` — every test email above has a corresponding row with sender, subject, category, priority, AI reasoning, action taken, RAG usage flag, response/forward target, Discord status, and timestamp.
+- **RAG pipeline:** reused directly from Task 5 (same FAISS vector store, same Gemini embedding model, same hallucination guardrail) — not rebuilt, per task requirements. Knowledge base: 5 Meridian Estates real-estate documents, 13 total chunks indexed.
